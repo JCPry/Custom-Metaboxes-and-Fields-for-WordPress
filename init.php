@@ -6,7 +6,7 @@ Contributors: 	Andrew Norcross (@norcross / andrewnorcross.com)
 				Bill Erickson (@billerickson / billerickson.net)
 				Justin Sternberg (@jtsternberg / dsgnwrks.pro)
 Description: 	This will create metaboxes with custom fields that will blow your mind.
-Version: 		0.9.1
+Version: 		0.9.2
 */
 
 /**
@@ -61,7 +61,7 @@ class cmb_Meta_Box_Validate {
 if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
        //winblows
     define( 'CMB_META_BOX_URL', trailingslashit( str_replace( DIRECTORY_SEPARATOR, '/', str_replace( str_replace( '/', DIRECTORY_SEPARATOR, WP_CONTENT_DIR ), WP_CONTENT_URL, dirname(__FILE__) ) ) ) );
-    
+
 } else {
     define( 'CMB_META_BOX_URL', apply_filters( 'cmb_meta_box_url', trailingslashit( str_replace( WP_CONTENT_DIR, WP_CONTENT_URL, dirname( __FILE__ ) ) ) ) );
 }
@@ -279,7 +279,7 @@ class cmb_Meta_Box {
 					echo '<p class="cmb_metabox_description">', $field['desc'], '</p>';
 					break;
 				case 'checkbox':
-					echo '<input class="' . $field['class'] . '" type="checkbox" name="', $field['id'], '" id="', $field['id'], '"', checked( ( ( $meta == '' && $field['std'] ) || $meta == true ), true, false ), ' />';
+					echo '<input type="checkbox" name="', $field['id'], '" id="', $field['id'], '"', $meta ? ' checked="checked"' : '', ' />';
 					echo '<span class="cmb_metabox_description">', $field['desc'], '</span>';
 					break;
 				case 'multicheck':
@@ -441,6 +441,12 @@ class cmb_Meta_Box {
 			return $post_id;
 		}
 
+		// get the post types applied to the metabox group
+		// and compare it to the post type of the content
+		$post_type = get_post_type($post_id);
+		$meta_type = $this->_meta_box['pages'];
+		$type_comp = in_array($post_type, $meta_type) ? true : false;
+
 		foreach ( $this->_meta_box['fields'] as $field ) {
 			$name = $field['id'];
 
@@ -450,7 +456,7 @@ class cmb_Meta_Box {
 			$old = get_post_meta( $post_id, $name, !$field['multiple'] /* If multicheck this can be multiple values */ );
 			$new = isset( $_POST[$field['id']] ) ? $_POST[$field['id']] : null;
 
-			if ( in_array( $field['type'], array( 'taxonomy_select', 'taxonomy_radio', 'taxonomy_multicheck' ) ) )  {
+			if ( $type_comp == true && in_array( $field['type'], array( 'taxonomy_select', 'taxonomy_radio', 'taxonomy_multicheck' ) ) )  {
 				$new = wp_set_object_terms( $post_id, $new, $field['taxonomy'] );
 			}
 
@@ -462,11 +468,11 @@ class cmb_Meta_Box {
 				$new = htmlspecialchars_decode( $new );
 			}
 
-			if ( $field['type'] == 'text_date_timestamp' ) {
+			if ( $type_comp == true && $field['type'] == 'text_date_timestamp' ) {
 				$new = strtotime( $new );
 			}
 
-			if ( $field['type'] == 'text_datetime_timestamp' ) {
+			if ( $type_comp == true && $field['type'] == 'text_datetime_timestamp' ) {
 				$string = $new['date'] . ' ' . $new['time'];
 				$new = strtotime( $string );
 			}
@@ -515,15 +521,30 @@ class cmb_Meta_Box {
  * Adding scripts and styles
  */
 function cmb_scripts( $hook ) {
-  	if ( $hook == 'post.php' || $hook == 'post-new.php' || $hook == 'page-new.php' || $hook == 'page.php' ) {
+	global $wp_version;
+	// only enqueue our scripts/styles on the proper pages
+	if ( $hook == 'post.php' || $hook == 'post-new.php' || $hook == 'page-new.php' || $hook == 'page.php' ) {
+		// scripts required for cmb
+		$cmb_script_array = array( 'jquery', 'jquery-ui-core', 'jquery-ui-datepicker', 'media-upload', 'thickbox' );
+		// styles required for cmb
+		$cmb_style_array = array( 'thickbox' );
+		// if we're 3.5 or later, user wp-color-picker
+		if ( 3.5 <= $wp_version ) {
+			$cmb_script_array[] = 'wp-color-picker';
+			$cmb_style_array[] = 'wp-color-picker';
+		} else {
+			// otherwise use the older 'farbtastic'
+			$cmb_script_array[] = 'farbtastic';
+			$cmb_style_array[] = 'farbtastic';
+		}
 		wp_register_script( 'cmb-timepicker', CMB_META_BOX_URL . 'js/jquery.timePicker.min.js' );
-		wp_register_script( 'cmb-scripts', CMB_META_BOX_URL . 'js/cmb.js', array( 'jquery', 'jquery-ui-core', 'jquery-ui-datepicker', 'media-upload', 'thickbox', 'farbtastic' ), '0.9.1' );
+		wp_register_script( 'cmb-scripts', CMB_META_BOX_URL . 'js/cmb.js', $cmb_script_array, '0.9.1' );
 		wp_localize_script( 'cmb-scripts', 'cmb_ajax_data', array( 'ajax_nonce' => wp_create_nonce( 'ajax_nonce' ), 'post_id' => get_the_ID() ) );
 		wp_enqueue_script( 'cmb-timepicker' );
 		wp_enqueue_script( 'cmb-scripts' );
-		wp_register_style( 'cmb-styles', CMB_META_BOX_URL . 'style.css', array( 'thickbox', 'farbtastic' ) );
+		wp_register_style( 'cmb-styles', CMB_META_BOX_URL . 'style.css', $cmb_style_array );
 		wp_enqueue_style( 'cmb-styles' );
-  	}
+	}
 }
 add_action( 'admin_enqueue_scripts', 'cmb_scripts', 10 );
 
